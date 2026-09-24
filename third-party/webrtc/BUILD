@@ -3151,6 +3151,7 @@ objc_library(
     ] + arch_specific_cflags + optimization_flags,
     cxxopts = [
         "-std=c++17",
+        "-Wno-error=lifetimebound",
     ],
     deps = [
         "//third-party/boringssl:crypto",
