@@ -51,6 +51,7 @@ jobs:
           set -euo pipefail
           python3 build-system/Make/Make.py \
             --cacheDir="$RUNNER_TEMP/ayugram-bazel-cache" \
+            --overrideXcodeVersion \
             build \
             --configurationPath="$RUNNER_TEMP/ayugram-build-config.json" \
             --buildNumber="$BUILD_NUMBER" \
