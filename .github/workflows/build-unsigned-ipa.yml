@@ -1,0 +1,82 @@
+name: Build unsigned arm64 IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: Build number
+        required: false
+        default: "100001"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-26
+    timeout-minutes: 240
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure unsigned app build
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os
+          config = {
+              "sg_config": "",
+              "bundle_id": "e883f7b47088a683.Darkgram",
+              "api_id": "8",
+              "api_hash": "7245de8e747a0d6fbe11f7cc14fcc0bb",
+              "team_id": "QSU8X42F7P",
+              "app_center_id": "0",
+              "is_internal_build": "true",
+              "is_appstore_build": "false",
+              "appstore_id": "0",
+              "app_specific_url_scheme": "ayugram",
+              "premium_iap_product_id": "",
+              "enable_siri": False,
+              "enable_icloud": False,
+          }
+          with open(os.path.join(os.environ["RUNNER_TEMP"], "ayugram-build-config.json"), "w") as f:
+              json.dump(config, f)
+          PY
+
+      - name: Build arm64 IPA without provisioning profile
+        env:
+          BUILD_NUMBER: ${{ inputs.build_number }}
+        run: |
+          set -euo pipefail
+          python3 build-system/Make/Make.py \
+            --cacheDir="$RUNNER_TEMP/ayugram-bazel-cache" \
+            build \
+            --configurationPath="$RUNNER_TEMP/ayugram-build-config.json" \
+            --buildNumber="$BUILD_NUMBER" \
+            --configuration=release_arm64 \
+            --disableProvisioningProfiles \
+            --outputBuildArtifactsPath="$RUNNER_TEMP/ayugram-output"
+
+      - name: Inspect IPA
+        run: |
+          set -euo pipefail
+          IPA="$RUNNER_TEMP/ayugram-output/Swiftgram.ipa"
+          test -s "$IPA"
+          python3 - "$IPA" <<'PY'
+          import sys, zipfile, plistlib
+          with zipfile.ZipFile(sys.argv[1]) as ipa:
+              names = ipa.namelist()
+              info_path = next(n for n in names if n.startswith("Payload/") and n.endswith(".app/Info.plist"))
+              info = plistlib.loads(ipa.read(info_path))
+              print("Bundle ID:", info.get("CFBundleIdentifier"))
+              print("Embedded mobileprovision:", any(n.endswith(".app/embedded.mobileprovision") for n in names))
+          PY
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AyuGram-iOS-unsigned-${{ inputs.build_number }}
+          path: ${{ runner.temp }}/ayugram-output/Swiftgram.ipa
+          if-no-files-found: error
+          retention-days: 14

@@ -450,6 +450,8 @@ def resolve_codesigning(arguments, base_path, build_configuration, provisioning_
             team_id=build_configuration.team_id,
             bundle_id=build_configuration.bundle_id
         )
+    if arguments.disableProvisioningProfiles:
+        profile_source = XcodeManagedCodesigningSource()
     elif arguments.xcodeManagedCodesigning is not None and arguments.xcodeManagedCodesigning == True:
         profile_source = XcodeManagedCodesigningSource()
     else:
@@ -496,10 +498,10 @@ def resolve_configuration(base_path, bazel_command_line: BazelCommandLine, argum
         arguments=arguments,
         base_path=base_path,
         build_configuration=build_configuration,
-        provisioning_profiles_path=provisioning_path,
+        provisioning_profiles_path=None if arguments.disableProvisioningProfiles else provisioning_path,
         additional_codesigning_output_path=additional_codesigning_output_path
     )
-    if codesigning_data.aps_environment is None:
+    if codesigning_data.aps_environment is None and not arguments.disableProvisioningProfiles:
         print('Could not find a valid aps-environment entitlement in the provided provisioning profiles')
         sys.exit(1)
 
@@ -621,6 +623,8 @@ def build(bazel, arguments):
     bazel_command_line.set_enable_sandbox(arguments.sandbox)
     bazel_command_line.set_profile_swift(arguments.profileSwift)
 
+    if arguments.disableProvisioningProfiles:
+        bazel_command_line.set_disable_provisioning_profiles()
     bazel_command_line.set_split_swiftmodules(arguments.enableParallelSwiftmoduleGeneration)
 
     bazel_command_line.invoke_build()
@@ -745,6 +749,7 @@ def build_spm(bazel, arguments):
     bazel_command_line.invoke_spm_build()
 
 def add_codesigning_common_arguments(current_parser: argparse.ArgumentParser):
+    is_build_command = current_parser.prog.split()[-1] == 'build'
     configuration_group = current_parser.add_mutually_exclusive_group(required=True)
     configuration_group.add_argument(
         '--configurationPath',
@@ -755,7 +760,7 @@ def add_codesigning_common_arguments(current_parser: argparse.ArgumentParser):
         metavar='path'
     )
 
-    codesigning_group = current_parser.add_mutually_exclusive_group(required=True)
+    codesigning_group = current_parser.add_mutually_exclusive_group(required=not is_build_command)
     codesigning_group.add_argument(
         '--gitCodesigningRepository',
         help='''
@@ -964,6 +969,12 @@ if __name__ == '__main__':
         ],
         required=True,
         help='Build configuration'
+    )
+    buildParser.add_argument(
+        '--disableProvisioningProfiles',
+        action='store_true',
+        default=False,
+        help='Build without embedded provisioning profiles (SideStore compatibility is not guaranteed).',
     )
     buildParser.add_argument(
         '--enableParallelSwiftmoduleGeneration',
