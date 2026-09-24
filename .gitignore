@@ -1,0 +1,6 @@
+Telegram/*.xcodeproj/
+__pycache__/
+.DS_Store
+build-input/
+bazel-out/
+bazel-bin/
