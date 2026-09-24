@@ -21,6 +21,7 @@ objc_library(
     cxxopts = [
         "-Werror",
         "-Wno-thread-safety-analysis",
+        "-Wno-reorder-init-list",
         "-std=c++17",
     ],
     hdrs = public_headers,
