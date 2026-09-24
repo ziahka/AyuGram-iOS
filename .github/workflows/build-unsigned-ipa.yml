@@ -57,6 +57,7 @@ jobs:
             --buildNumber="$BUILD_NUMBER" \
             --configuration=release_arm64 \
             --disableProvisioningProfiles \
+            --disableExtensions \
             --outputBuildArtifactsPath="$RUNNER_TEMP/ayugram-output"
 
       - name: Inspect IPA
