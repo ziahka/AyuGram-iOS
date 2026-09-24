@@ -2078,7 +2078,10 @@ ios_application(
             ":BroadcastUploadExtension",
         ],
     }),
-    watch_application = ":TelegramWatchApp", # MARK: Swiftgram
+    watch_application = select({
+        ":disableProvisioningProfilesSetting": None,
+        "//conditions:default": ":TelegramWatchApp",
+    }), # MARK: Swiftgram
     deps = [
         ":Main",
         ":Lib",
