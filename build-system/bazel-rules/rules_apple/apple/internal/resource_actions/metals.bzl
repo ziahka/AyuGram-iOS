@@ -90,7 +90,7 @@ def compile_metals(*, actions, input_files, output_file, platform_prerequisites,
         apple_support.run(
             actions = actions,
             executable = "/usr/bin/xcrun",
-            inputs = [input_metal] + hdrs,
+            inputs = input_files,
             outputs = [air_file],
             arguments = [args],
             mnemonic = "MetalCompile",
