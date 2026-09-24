@@ -38,12 +38,9 @@ def _provisioning_profile_partial_impl(
     """Implementation for the provisioning profile partial."""
 
     if not profile_artifact:
-        fail(
-            "\n".join([
-                "ERROR: In {}:".format(str(rule_label)),
-                "Building for device, but no provisioning_profile attribute was set.",
-            ]),
-        )
+        # Unsigned device builds (e.g. for sideloading, where the installer re-signs the app)
+        # intentionally have no provisioning profile to embed.
+        return struct(bundle_files = [])
 
     # Create intermediate file with proper name for the binary.
     intermediate_file = intermediates.file(

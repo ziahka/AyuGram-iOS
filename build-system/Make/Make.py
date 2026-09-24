@@ -284,6 +284,7 @@ class BazelCommandLine:
 
         if self.disable_provisioning_profiles:
             combined_arguments += ['--//Telegram:disableProvisioningProfiles']
+            combined_arguments += ['--features=disable_legacy_signing']
 
         if self.disable_extensions:
             combined_arguments += ['--//Telegram:disableExtensions']
