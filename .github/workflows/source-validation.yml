@@ -1,0 +1,51 @@
+name: Source validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify public tree excludes signing material
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-files | rg -i '(^|/)(\.env($|\.)|secrets?|credentials?)(/|$)|\.(p12|mobileprovision|pem|key)$'; then
+            echo "Unexpected credential/signing file is tracked" >&2
+            exit 1
+          fi
+          if git ls-files | rg -i '(^|/)(appstore-configuration\.json|verify\.sh)$'; then
+            echo "Telegram-specific signing config is tracked" >&2
+            exit 1
+          fi
+
+      - name: Verify legacy glass is forced in source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rg -q 'useCustomGlassImpl: Bool = true' submodules/TelegramUI/Components/GlassBackgroundComponent/Sources/GlassBackgroundComponent.swift
+          rg -q 'private static let useSystemLiquidLens = false' submodules/TelegramUI/Components/LiquidLens/Sources/LiquidLensView.swift
+          test "$(rg -c 'GlassBackgroundView\.useCustomGlassImpl = true' submodules/TelegramUI/Sources/SharedAccountContext.swift)" -eq 2
+          if rg -n 'GlassBackgroundView\.useCustomGlassImpl = (settings\.fakeGlass|immediateExperimentalUISettingsValue)' submodules/TelegramUI/Sources/SharedAccountContext.swift; then
+            echo "A runtime setting can re-enable native glass" >&2
+            exit 1
+          fi
+
+      - name: Verify build target and Make.py syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          rg -q 'name = "Swiftgram"' Telegram/BUILD
+          python3 -m py_compile build-system/Make/Make.py build-system/Make/BuildConfiguration.py
