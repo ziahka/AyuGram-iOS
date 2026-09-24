@@ -22,30 +22,39 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git ls-files | rg -i '(^|/)(\.env($|\.)|secrets?|credentials?)(/|$)|\.(p12|mobileprovision|pem|key)$'; then
-            echo "Unexpected credential/signing file is tracked" >&2
-            exit 1
-          fi
-          if git ls-files | rg -i '(^|/)(appstore-configuration\.json|verify\.sh)$'; then
-            echo "Telegram-specific signing config is tracked" >&2
-            exit 1
-          fi
+          python3 - <<'PY'
+          import re
+          import subprocess
+          paths = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
+          forbidden = re.compile(r'(^|/)(\.env($|\.)|secrets?|credentials?)(/|$)|\.(p12|mobileprovision|pem|key)$', re.I)
+          private_config = re.compile(r'(^|/)(appstore-configuration\.json|verify\.sh)$', re.I)
+          bad = [p for p in paths if forbidden.search(p) or private_config.search(p)]
+          if bad:
+              raise SystemExit("Unexpected private/signing files tracked:\n" + "\n".join(bad))
+          PY
 
       - name: Verify legacy glass is forced in source
         shell: bash
         run: |
           set -euo pipefail
-          rg -q 'useCustomGlassImpl: Bool = true' submodules/TelegramUI/Components/GlassBackgroundComponent/Sources/GlassBackgroundComponent.swift
-          rg -q 'private static let useSystemLiquidLens = false' submodules/TelegramUI/Components/LiquidLens/Sources/LiquidLensView.swift
-          test "$(rg -c 'GlassBackgroundView\.useCustomGlassImpl = true' submodules/TelegramUI/Sources/SharedAccountContext.swift)" -eq 2
-          if rg -n 'GlassBackgroundView\.useCustomGlassImpl = (settings\.fakeGlass|immediateExperimentalUISettingsValue)' submodules/TelegramUI/Sources/SharedAccountContext.swift; then
-            echo "A runtime setting can re-enable native glass" >&2
-            exit 1
-          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          glass = Path("submodules/TelegramUI/Components/GlassBackgroundComponent/Sources/GlassBackgroundComponent.swift").read_text()
+          lens = Path("submodules/TelegramUI/Components/LiquidLens/Sources/LiquidLensView.swift").read_text()
+          context = Path("submodules/TelegramUI/Sources/SharedAccountContext.swift").read_text()
+          assert "useCustomGlassImpl: Bool = true" in glass
+          assert "private static let useSystemLiquidLens = false" in lens
+          assert context.count("GlassBackgroundView.useCustomGlassImpl = true") == 2
+          assert not re.search(r"GlassBackgroundView\.useCustomGlassImpl = (?:settings\.fakeGlass|immediateExperimentalUISettingsValue)", context)
+          PY
 
       - name: Verify build target and Make.py syntax
         shell: bash
         run: |
           set -euo pipefail
-          rg -q 'name = "Swiftgram"' Telegram/BUILD
+          python3 - <<'PY'
+          from pathlib import Path
+          assert 'name = "Swiftgram"' in Path("Telegram/BUILD").read_text()
+          PY
           python3 -m py_compile build-system/Make/Make.py build-system/Make/BuildConfiguration.py
